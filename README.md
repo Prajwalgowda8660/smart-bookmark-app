@@ -159,7 +159,7 @@ Built with ❤️ using Next.js & Supabase.
 
 ---
 
-## ✅ Now Final Steps
+✅ Now Final Steps
 
 1. Save file (Ctrl + S)
 2. Run:
@@ -180,4 +180,4 @@ You now have:
 - Clean GitHub repo
 - Professional README
 
-This is submission-ready 🚀
+
