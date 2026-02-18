@@ -9,43 +9,53 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [bookmarks, setBookmarks] = useState<any[]>([]);
 
- useEffect(() => {
-  const init = async () => {
-    const { data } = await supabase.auth.getUser();
-    const currentUser = data.user;
+  // ===============================
+  // INIT AUTH + REALTIME
+  // ===============================
+  useEffect(() => {
+    let channel: any;
 
-    setUser(currentUser);
+    const init = async () => {
+      const { data } = await supabase.auth.getUser();
+      const currentUser = data.user;
 
-    if (currentUser) {
-      fetchBookmarks(currentUser.id);
+      setUser(currentUser);
 
-      // REALTIME SUBSCRIPTION
-      const channel = supabase
-        .channel("bookmarks-changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "bookmarks",
-            filter: `user_id=eq.${currentUser.id}`,
-          },
-          () => {
-            fetchBookmarks(currentUser.id);
-          }
-        )
-        .subscribe();
+      if (currentUser) {
+        await fetchBookmarks(currentUser.id);
 
-      return () => {
+        // Realtime subscription
+        channel = supabase
+          .channel("bookmarks-changes")
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "bookmarks",
+              filter: `user_id=eq.${currentUser.id}`,
+            },
+            () => {
+              fetchBookmarks(currentUser.id);
+            }
+          )
+          .subscribe();
+      }
+    };
+
+    init();
+
+    // Cleanup
+    return () => {
+      if (channel) {
         supabase.removeChannel(channel);
-      };
-    }
-  };
+      }
+    };
+  }, []);
 
-  init();
-}, []);
-
-
+  // ===============================
+  // FETCH BOOKMARKS
+  // ===============================
   const fetchBookmarks = async (userId: string) => {
     const { data, error } = await supabase
       .from("bookmarks")
@@ -53,9 +63,14 @@ export default function Home() {
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    if (!error) setBookmarks(data || []);
+    if (!error) {
+      setBookmarks(data || []);
+    }
   };
 
+  // ===============================
+  // AUTH HANDLERS
+  // ===============================
   const handleLogin = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -68,8 +83,11 @@ export default function Home() {
     setBookmarks([]);
   };
 
+  // ===============================
+  // ADD BOOKMARK
+  // ===============================
   const handleAddBookmark = async () => {
-    if (!title || !url) return;
+    if (!title || !url || !user) return;
 
     const { error } = await supabase.from("bookmarks").insert([
       {
@@ -82,21 +100,27 @@ export default function Home() {
     if (!error) {
       setTitle("");
       setUrl("");
-      fetchBookmarks(user.id);
+      // No manual fetch needed (Realtime handles it)
     }
   };
 
+  // ===============================
+  // DELETE BOOKMARK
+  // ===============================
   const handleDelete = async (id: string) => {
     await supabase.from("bookmarks").delete().eq("id", id);
-    fetchBookmarks(user.id);
+    // No manual fetch needed
   };
 
+  // ===============================
+  // UI
+  // ===============================
   return (
     <div className="min-h-screen flex items-center justify-center flex-col gap-6 p-6">
       {!user ? (
         <button
           onClick={handleLogin}
-          className="bg-black text-white px-6 py-3 rounded-lg"
+          className="bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition"
         >
           Login with Google
         </button>
@@ -123,13 +147,19 @@ export default function Home() {
             />
             <button
               onClick={handleAddBookmark}
-              className="bg-blue-500 text-white px-4 py-2 rounded"
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
             >
               Add
             </button>
           </div>
 
           <div className="w-full max-w-md">
+            {bookmarks.length === 0 && (
+              <p className="text-gray-500 text-center">
+                No bookmarks yet.
+              </p>
+            )}
+
             {bookmarks.map((bookmark) => (
               <div
                 key={bookmark.id}
@@ -140,6 +170,7 @@ export default function Home() {
                   <a
                     href={bookmark.url}
                     target="_blank"
+                    rel="noopener noreferrer"
                     className="text-blue-600 text-sm"
                   >
                     {bookmark.url}
@@ -147,7 +178,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => handleDelete(bookmark.id)}
-                  className="text-red-500"
+                  className="text-red-500 hover:text-red-700 transition"
                 >
                   Delete
                 </button>
@@ -157,7 +188,7 @@ export default function Home() {
 
           <button
             onClick={handleLogout}
-            className="bg-red-500 text-white px-6 py-2 rounded-lg"
+            className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition"
           >
             Logout
           </button>
