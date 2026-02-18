@@ -12,46 +12,44 @@ export default function Home() {
   // ===============================
   // INIT AUTH + REALTIME
   // ===============================
-  useEffect(() => {
-    let channel: any;
+ useEffect(() => {
+  let channel: any;
 
-    const init = async () => {
-      const { data } = await supabase.auth.getUser();
-      const currentUser = data.user;
+  const init = async () => {
+    const { data } = await supabase.auth.getUser();
+    const currentUser = data.user;
 
-      setUser(currentUser);
+    setUser(currentUser);
 
-      if (currentUser) {
-        await fetchBookmarks(currentUser.id);
+    if (currentUser) {
+      fetchBookmarks(currentUser.id);
 
-        // Realtime subscription
-        channel = supabase
-          .channel("bookmarks-changes")
-          .on(
-            "postgres_changes",
-            {
-              event: "*",
-              schema: "public",
-              table: "bookmarks",
-              filter: `user_id=eq.${currentUser.id}`,
-            },
-            () => {
-              fetchBookmarks(currentUser.id);
-            }
-          )
-          .subscribe();
-      }
-    };
+      channel = supabase
+        .channel("bookmarks-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "bookmarks",
+            filter: `user_id=eq.${currentUser.id}`,
+          },
+          () => {
+            fetchBookmarks(currentUser.id);
+          }
+        )
+        .subscribe();
+    }
+  };
 
-    init();
+  init();
 
-    // Cleanup
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, []);
+  return () => {
+    if (channel) {
+      supabase.removeChannel(channel);
+    }
+  };
+}, []);
 
   // ===============================
   // FETCH BOOKMARKS
